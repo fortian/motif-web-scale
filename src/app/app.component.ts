@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 
 import { BatteryLevelService } from './battery-level.service';
 import { WeightService } from './weight.service';
+import { Subscription } from 'rxjs';
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
@@ -12,34 +13,45 @@ export class AppComponent implements OnInit {
   title = 'Web Scale';
   offset: number;
   public weight: number;
-  public battery: number;
+
   public unit: string;
   public isMenuCollapsed: boolean;
-  public foo = String.fromCodePoint(0x1F937);
-  constructor(private ws: WeightService) {
+  public isConnected = false;
+  private streamSub: Subscription;
+  constructor(private ws: WeightService, private batt: BatteryLevelService) {
     this.isMenuCollapsed = true;
     this.unit = 'kg';
   }
-  ngOnInit(): void {
-
-    this.zero();
-  }
-
+  ngOnInit(): void { }
 
   zero(): void {
-    this.ws.value().subscribe(val => {
+    const sub = this.ws.stream().subscribe(val => {
       this.offset = val;
+      sub.unsubscribe();
       this.stream();
     });
   }
-  do(): void {
-    this.ws.value().subscribe(val => {
-      this.weight = +(val - this.offset).toFixed(6);
+  connect(): void {
+    this.ws.listen();
+    const sub = this.ws.value().subscribe(val => {
+      console.log('connected:', val);
+      this.offset = val;
+      sub.unsubscribe();
+      this.stream();
     });
   }
-  stream() {
+  disconnect(): void {
+    this.ws.disconnectDevice();
+    this.weight = null;
+  }
 
-    this.ws.stream().subscribe(val => {
+
+  stream(): void {
+
+    if (this.streamSub) {
+      this.streamSub.unsubscribe();
+    }
+    this.streamSub = this.ws.stream().subscribe(val => {
 
       switch (this.unit) {
         case 'kg':
@@ -50,6 +62,7 @@ export class AppComponent implements OnInit {
           break;
         case 'oz':
           this.weight = +(35.274 * (val - this.offset)).toFixed(2);
+          break;
         default:
           break;
       }
@@ -59,7 +72,7 @@ export class AppComponent implements OnInit {
 
     });
   }
-  units(unit: string) {
+  units(unit: string): void {
     this.unit = unit;
   }
 
